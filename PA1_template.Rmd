@@ -1,20 +1,179 @@
 # Reproducible Research: Peer Assessment 1
 
+Load required libraries
+``` {r LibLoad}
+library(plyr)
+library(ggplot2)
+```
 
 ## Loading and preprocessing the data
 
+Reading the data from activity.csv.
+
+```{r LoadData ,  cache=TRUE}
+actData= read.csv("./activity.csv",na.strings=c("NA", "NULL"))
+
+```
+Structure of the data looks like...
+
+```{r SummaryOfData }
+str(actData)
+
+```
+
+Data with ignoring mising values will be:
+``` {r MissingValue}
+subactData=subset(actData,! is.na(actData$steps))
+
+str(subactData)
+```
 
 
 ## What is mean total number of steps taken per day?
 
+Please Note:Missing values in the dataset are being ignored .
+``` {r MeanValue}
+
+datestepsdata=tapply(subactData$steps,subactData$date,sum)
+dfdatestepsdata=as.data.frame(datestepsdata)
+dfdatestepsdata[,2]=unique(actData$date)
+names(dfdatestepsdata)=c("stepsmean","date")
+
+qplot(dfdatestepsdata[,1], xlab = expression(bold("Total number of Steps")),  geom = "bar",binwidth=1000)
+
+
+meansteps=mean(dfdatestepsdata[,1],na.rm=TRUE)
+medsteps=median(dfdatestepsdata[,1],na.rm=TRUE)
+```
+Mean of total number of steps taken per day is `r meansteps`  
+Median of total number of steps taken per day is `r medsteps`
 
 
 ## What is the average daily activity pattern?
+Please Note:Missing values in the dataset are being ignored .
 
+Time Series of 5-minute interval 
+``` {r AvgDailyValue}
+intstepsdata=tapply(subactData$steps,subactData$interval,mean)
+dfintstepsdata=as.data.frame(intstepsdata)
+dfintstepsdata[,2]=unique(actData$interval)
+names(dfintstepsdata)=c("avgdailysteps","interval")
+
+ggplot(dfintstepsdata, aes( interval,avgdailysteps)) + geom_line() +    xlab("5-minute Interval") + ylab("Average number of steps taken, averaged across all days")
+
+
+```
+
+```{r Maxsteps}
+maxsteps=max(dfintstepsdata$avgdailysteps)
+intmaxsteps=dfintstepsdata[dfintstepsdata$avgdailysteps==maxsteps,]
+```
+
+5-minute Interval with maximum number of steps is `r intmaxsteps$interval`
 
 
 ## Imputing missing values
 
+1. Calculating total number f missin values in the dataset
+
+``` {r missingvalcount}
+nacount=dim(actData[is.na(actData$steps),])[1]
+```
+
+Total number of rows with NA s are: `r nacount`
+
+============================
+2. Stratergy for filling in all of themissing Values in the dataset
+
+We plan to impute missing values with mean of number steps of all observations
+
+``` {r imputingNA}
+impactData=actData
+impactData[is.na(impactData$steps),]$steps=rep(mean(impactData$steps,na.rm=TRUE),nacount)
+```
+
+
+================================
+3. New Data after imputing missing value looks like:  
+
+``` {r }
+str ( impactData)
+```
+
+================================
+4.Summarisizing new data and comparing with original:
+
+
+``` {r NewMeanValue}
+
+newdatestepsdata=tapply(impactData$steps,impactData$date,sum)
+newdfdatestepsdata=as.data.frame(newdatestepsdata)
+newdfdatestepsdata[,2]=unique(actData$date)
+names(newdfdatestepsdata)=c("stepsmean","date")
+
+qplot(newdfdatestepsdata[,1], xlab = expression(bold("Total number of Steps")),  geom = "bar",binwidth=1000)
+
+
+newmeansteps=mean(newdfdatestepsdata[,1],na.rm=TRUE)
+newmedsteps=median(newdfdatestepsdata[,1],na.rm=TRUE)
+```
+
+**We see very little difference in the estimates from earlier data set** 
+
+New Mean of total number of steps taken per day is `r newmeansteps`  
+Original Mean of total number of steps taken per day is `r meansteps`  
+
+
+New Median of total number of steps taken per day is `r newmedsteps`  
+Original  Median of total number of steps taken per day is `r medsteps`
+
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+1. Creating a new factor variable to split the data as Weekend data and Weekday Data 
+
+``` {r Daylist}
+daylist=weekdays(as.POSIXlt(impactData$date))
+ww=ifelse((daylist=="Sunday") | (daylist== "Saturday"),"Weekend","Weekday")
+
+impactData["ww"]=as.factor(ww)
+wwSplitData=split(impactData,impactData$ww)
+
+weekendactData=wwSplitData$Weekend
+weekdayactData=wwSplitData$Weekday
+
+str(weekendactData)
+str(weekdayactData)
+
+```
+
+==============================
+2. Compare Weekend activity with Weekday activity
+
+
+
+``` {r Panelplot}
+## For weekend Data
+WEintstepsdata=tapply(weekendactData$steps,weekendactData$interval,mean)
+WEdfintstepsdata=as.data.frame(WEintstepsdata)
+WEdfintstepsdata[,2]=unique(actData$interval)
+WEdfintstepsdata[,3]=as.factor(rep("Weekend",nrow(WEdfintstepsdata)))
+names(WEdfintstepsdata)=c("avgdailysteps","interval","WeekSplit")
+
+
+## For Weekday Data
+WDintstepsdata=tapply(weekdayactData$steps,weekdayactData$interval,mean)
+WDdfintstepsdata=as.data.frame(WDintstepsdata)
+WDdfintstepsdata[,2]=unique(actData$interval)
+WDdfintstepsdata[,3]=as.factor(rep("Weekday",nrow(WDdfintstepsdata)))
+names(WDdfintstepsdata)=c("avgdailysteps","interval","WeekSplit")
+
+## Join the data
+wwdfintstepsdata=rbind(WDdfintstepsdata,WEdfintstepsdata)
+
+
+ggplot(wwdfintstepsdata, aes( interval,avgdailysteps)) + geom_line()+facet_grid(WeekSplit~.) +    xlab("5-minute Interval ") + ylab("Number of steps")
+
+
+```
